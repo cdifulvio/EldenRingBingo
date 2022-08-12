@@ -44,7 +44,7 @@
     
             const BINGO_CATEGORIES = [WEAPONS, ARMOR_SETS, SPELLS, ASHES, BOSSES, TALISMANS, ITEMS, QUESTS, EXPLORATION];
             const SUM_OF_WEIGHTS = BINGO_CATEGORIES.reduce((prev, curr) => prev += curr.weight, 0);
-            const BINGO_TABLE_ENTRIES = [];
+            let BINGO_TABLE_ENTRIES = [];
     
             function weightedRandomBingoPick() {
                 let randomNum = Math.random() * SUM_OF_WEIGHTS;
@@ -118,6 +118,9 @@
             }
 
             function generateAdventureBingoSheet(ignoreSeed) {
+
+                BINGO_TABLE_ENTRIES = [];
+
                 const seed = (new Proxy(new URLSearchParams(window.location.search), {
                     get: (searchParams, prop) => searchParams.get(prop),
                 }))?.seed;
@@ -179,7 +182,6 @@
                                 }
                             }
                         }
-
                     }
                 }
                 
