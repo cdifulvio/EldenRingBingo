@@ -44,6 +44,7 @@
     
             const BINGO_CATEGORIES = [WEAPONS, ARMOR_SETS, SPELLS, ASHES, BOSSES, TALISMANS, ITEMS, QUESTS, EXPLORATION];
             const SUM_OF_WEIGHTS = BINGO_CATEGORIES.reduce((prev, curr) => prev += curr.weight, 0);
+            const BINGO_TABLE_ENTRIES = [];
     
             function weightedRandomBingoPick() {
                 let randomNum = Math.random() * SUM_OF_WEIGHTS;
@@ -81,13 +82,13 @@
                     row.setAttribute('id', 'row' + rows);
                     bingoGrid.appendChild(row);
     
-                    for (var col = 1; col < 6; col++) {
+                    for (var cols = 1; cols < 6; cols++) {
                         const bingoCell = document.createElement('td');
-                        bingoCell.setAttribute('id', 'cell' + rows + '' + col);
+                        bingoCell.setAttribute('id', 'cell' + rows + '' + cols);
                         bingoCell.onclick = function () { onCellClick(this) };
 
                         if (seedEntries) {
-                            const bingoEntry = seedEntries[((rows - 1) * 5 + col) - 1].name;
+                            const bingoEntry = seedEntries[((rows - 1) * 5 + cols) - 1].name;
                             bingoCell.innerHTML = bingoEntry;
                             row.appendChild(bingoCell);
                             addedBingoEntries.push(bingoEntry);
@@ -113,6 +114,80 @@
     
                 const bingoSyncTextArea = document.getElementById('bingo_sync');
                 bingoSyncTextArea.innerHTML = JSON.stringify(bingoSync);
+                bingoSyncTextArea.hidden = false;
+            }
+
+            function generateAdventureBingoSheet(ignoreSeed) {
+                const seed = (new Proxy(new URLSearchParams(window.location.search), {
+                    get: (searchParams, prop) => searchParams.get(prop),
+                }))?.seed;
+
+                const seedEntries = seed != null && !ignoreSeed ? JSON.parse(atob(seed)) : null;
+                
+                if (document.getElementById('bingo_table')) {
+                    const table = document.getElementById('bingo_table');
+                    table.remove();
+                }
+                const bingoDiv = document.getElementById('bingo_grid');
+                const startingCoordinates = generateAdventureStartingCoordinates();
+    
+                // create the bingo table
+                const bingoGrid = document.createElement('table');
+                bingoGrid.setAttribute('id', 'bingo_table');
+                const bingoSync = [];
+    
+                for (var rows = 1; rows < 6; rows++) {
+                    const row = document.createElement('tr');
+                    row.setAttribute('id', 'row' + rows);
+                    bingoGrid.appendChild(row);
+    
+                    for (var cols = 1; cols < 6; cols++) {
+                        const bingoCell = document.createElement('td');
+                        bingoCell.setAttribute('id', 'cell' + rows + '' + cols);
+                        bingoCell.onclick = function () { onAdventureCellClick(this) };
+
+                        if (seedEntries) {
+                            const bingoEntry = seedEntries[((rows - 1) * 5 + cols) - 1].name;
+                            for (var coordIndex = 0; coordIndex < startingCoordinates.length; coordIndex++) {
+                                if ((rows == startingCoordinates[coordIndex].row && cols == startingCoordinates[coordIndex].col)) {
+                                    bingoCell.innerHTML = bingoEntry;
+                                    break;
+                                } else {
+                                    bingoCell.innerHTML = "";
+                                }
+                            }
+                            row.appendChild(bingoCell);
+                            BINGO_TABLE_ENTRIES.push(bingoEntry);
+                            bingoSync.push({ name: bingoEntry });
+                        } else {
+                            let foundUniqueBingoEntry = false;
+                            while (!foundUniqueBingoEntry) {
+                                const bingoEntry = weightedRandomBingoPick();
+                                if (!BINGO_TABLE_ENTRIES.find(entry => entry == bingoEntry)) {
+                                    for (var coordIndex = 0; coordIndex < startingCoordinates.length; coordIndex++) {
+                                        if ((rows == startingCoordinates[coordIndex].row && cols == startingCoordinates[coordIndex].col)) {
+                                            bingoCell.innerHTML = bingoEntry;
+                                            break;
+                                        } else {
+                                            bingoCell.innerHTML = "";
+                                        }
+                                    }
+                                    row.appendChild(bingoCell);
+                                    BINGO_TABLE_ENTRIES.push(bingoEntry);
+                                    bingoSync.push({ name: bingoEntry });
+                                    foundUniqueBingoEntry = true;
+                                }
+                            }
+                        }
+
+                    }
+                }
+                
+                bingoDiv.appendChild(bingoGrid);
+    
+                const bingoSyncTextArea = document.getElementById('bingo_sync');
+                bingoSyncTextArea.innerHTML = JSON.stringify(bingoSync);
+                bingoSyncTextArea.hidden = true;
             }
     
             function onCellClick(cell) {
@@ -126,6 +201,68 @@
                     cell.setAttribute('bgcolor', GREEN);
                 }
                 
+            }
+
+            function onAdventureCellClick(cell) {
+                const cellID = cell.getAttribute('id').toString();
+                const cellColor = cell.getAttribute('bgcolor');
+
+                if (cell.innerHTML != '') {
+                    if (cellColor == GREEN) {
+                        cell.setAttribute('bgcolor', RED);
+                    } else if (cellColor == RED) {
+                        cell.setAttribute('bgcolor', '');
+                    } else {
+                        cell.setAttribute('bgcolor', GREEN);
+                    }
+                    const cellCoordinates = {'row': parseInt(cellID[4]), 'col': parseInt(cellID[5])};
+                    revealRelativeCells(cellCoordinates);
+                }
+            }
+
+            function getCellByCoordinates(cellCoordinates) {
+                return document.getElementById('cell'+cellCoordinates.row+cellCoordinates.col);
+            }
+
+            function revealRelativeCells(cellCoordinates) {
+                const cellCoordinatesToUpdate = [];
+
+                if((cellCoordinates.row-1) >= 1) {
+                    cellCoordinatesToUpdate.push({'row' : cellCoordinates.row-1, 'col': cellCoordinates.col});
+                }
+                if((cellCoordinates.row+1) < 6) {
+                    cellCoordinatesToUpdate.push({'row' : cellCoordinates.row+1, 'col': cellCoordinates.col});
+                }
+                if((cellCoordinates.col-1) >= 1) {
+                    cellCoordinatesToUpdate.push({'row' : cellCoordinates.row, 'col': cellCoordinates.col-1});
+                }
+                if((cellCoordinates.col+1) < 6) {
+                    cellCoordinatesToUpdate.push({'row' : cellCoordinates.row, 'col': cellCoordinates.col+1});
+                }
+                
+                for (var i = 0; i < cellCoordinatesToUpdate.length; i++) {
+                    let coordinates = cellCoordinatesToUpdate[i];
+                    getCellByCoordinates(coordinates).innerHTML = BINGO_TABLE_ENTRIES[((coordinates.row - 1) * 5 + coordinates.col) - 1];
+                }
+            }
+
+            function generateAdventureStartingCoordinates() {
+                const rowIDs = [2, 3, 4];
+                const columnIDs = [2, 3, 4];
+
+                const startingCoordinates = [];
+
+                for (var i = 0; i < 2; i++) {
+
+                    let tempRowIndex = Math.floor(Math.random()*rowIDs.length);
+                    let tempColIndex = Math.floor(Math.random()*columnIDs.length);
+
+                    startingCoordinates.push({'row': rowIDs[tempRowIndex], 'col': columnIDs[tempColIndex]});
+
+                    rowIDs.splice(tempRowIndex, 1);
+                    columnIDs.splice(tempColIndex, 1);
+                }
+                return startingCoordinates;
             }
 
             function shareCard() {
@@ -142,6 +279,7 @@
             <div id="bingo_grid"></div>
             <br />
             <button id="generate_button" onClick="generateBingoSheet(true)">Generate new card</button>
+            <button id="generate_adv_button" onClick="generateAdventureBingoSheet(true)">Generate new adventure card</button>
             <img src="https://static-cdn.jtvnw.net/emoticons/v2/emotesv2_e02650251d204198923de93a0c62f5f5/static/light/3.0" />
             <button id="share_button" onClick="shareCard()">Share card</button>
             <br /><br /><br />
